@@ -485,6 +485,43 @@ export function getFrontendRouteManifests(): FrontendRouteManifestEntry[] {
   return routeManifestGlobals()[FRONTEND_ROUTE_MANIFESTS_KEY] ?? []
 }
 
+type PageRouteManifestEntry = BackendRouteManifestEntry | FrontendRouteManifestEntry
+type RouteManifestShard = { routes: PageRouteManifestEntry[]; routeOrders: number[] }
+
+// Page bundles register the route shards they import here, so the route facades that
+// bootstrap registers can load a page without statically importing every page module.
+// A static import of every loader puts every module's client components into the client
+// entry of each route that runs bootstrap.
+const ROUTE_MANIFEST_SHARDS_KEY = '__openMercatoRouteManifestShards__'
+
+function routeManifestShards(): Map<string, RouteManifestShard> {
+  const scope = globalThis as typeof globalThis & { [ROUTE_MANIFEST_SHARDS_KEY]?: Map<string, RouteManifestShard> }
+  scope[ROUTE_MANIFEST_SHARDS_KEY] ??= new Map()
+  return scope[ROUTE_MANIFEST_SHARDS_KEY]
+}
+
+export function registerRouteManifestShard(kind: 'backend' | 'frontend', key: string, shard: RouteManifestShard) {
+  routeManifestShards().set(`${kind}:${key}`, shard)
+}
+
+export function createRouteManifestShardFacades<T extends PageRouteManifestEntry>(
+  kind: 'backend' | 'frontend',
+  metadata: Omit<T, 'load'>[],
+  shardKeys: string[],
+): T[] {
+  return metadata.map((entry, ordinal) => ({
+    ...entry,
+    load: async () => {
+      const shard = routeManifestShards().get(`${kind}:${shardKeys[ordinal]}`)
+      const index = shard ? shard.routeOrders.indexOf(ordinal) : -1
+      if (!shard || index < 0) {
+        throw new Error(`[internal] Route ${entry.pattern ?? entry.path} cannot be loaded: its ${kind} route shard "${shardKeys[ordinal]}" is not registered in this process`)
+      }
+      return shard.routes[index].load()
+    },
+  }) as T)
+}
+
 export function registerApiRouteManifests(routes: ApiRouteManifestEntry[]) {
   // Apply any `entry.overrides.routes.api` overrides registered through the
   // unified `modules.ts` dispatcher or programmatic API before storing the

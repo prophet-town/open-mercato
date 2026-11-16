@@ -73,4 +73,23 @@ describe('route manifest registries across duplicated module instances', () => {
     expect(reader.getBackendRouteManifests()).toEqual([])
     expect(reader.getFrontendRouteManifests()).toEqual([])
   })
+
+  it('loads facade routes through a shard registered by another bundle copy', async () => {
+    const bootstrapCopy = loadIsolatedRegistry()
+    const pageBundleCopy = loadIsolatedRegistry()
+    const Page = () => null
+    const facades = bootstrapCopy.createRouteManifestShardFacades<BackendRouteManifestEntry>(
+      'backend',
+      [{ moduleId: 'sales', pattern: '/backend/sales' }, { moduleId: 'customers', pattern: '/backend/customers' }],
+      ['sales', 'customers'],
+    )
+
+    await expect(facades[1].load()).rejects.toThrow('route shard "customers" is not registered')
+    pageBundleCopy.registerRouteManifestShard('backend', 'customers', {
+      routes: [{ moduleId: 'customers', pattern: '/backend/customers', load: async () => Page }],
+      routeOrders: [1],
+    })
+    await expect(facades[1].load()).resolves.toBe(Page)
+  })
 })
+

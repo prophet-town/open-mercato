@@ -63,6 +63,8 @@ next-env.d.ts
 # generated files
 .mercato/*
 !.mercato/railway.json
+# per-shard backend page routes written by `mercato generate`
+(generated)/
 generated/
 src/generated/
 .test-cache.json

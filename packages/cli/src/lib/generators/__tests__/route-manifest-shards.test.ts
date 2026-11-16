@@ -1,7 +1,9 @@
 import {
   getRouteManifestShardKey,
+  renderBackendRoutePageOutputs,
   renderRouteManifestShardOutputs,
   renderRouteMetadataOutput,
+  renderRouteRegistryFacadesOutput,
 } from '../route-manifest-shards'
 
 describe('route manifest shards', () => {
@@ -73,5 +75,33 @@ describe('route manifest shards', () => {
     expect(output.content).toContain(`import * as META from '@app/settings/meta'`)
     expect(output.content).toContain(`Omit<BackendRouteManifestEntry, 'load'>`)
     expect(output.content).not.toContain('load: async')
+  })
+
+  it('renders one page route per static backend shard that registers only its own shard', () => {
+    const entries = [
+      { path: '/backend/customers/people', declaration: `{ moduleId: 'customers' } as any` },
+      { path: '/backend/sales/orders', declaration: `{ moduleId: 'sales' } as any` },
+      { path: '/backend/customers/companies', declaration: `{ moduleId: 'customers' } as any` },
+    ]
+    const pages = renderBackendRoutePageOutputs(entries)
+    expect(pages.map((page) => page.key)).toEqual(['customers', 'sales'])
+    const customers = pages[0].content
+    expect(customers).toContain(`import * as shard from '@/.mercato/generated/backend-route-shard.000.customers.generated'`)
+    expect(customers).toContain(`registerRouteManifestShard('backend', "customers", shard)`)
+    expect(customers).not.toContain('sales')
+    expect(customers).toContain(`export const dynamic = 'force-dynamic'`)
+
+    const facades = renderRouteRegistryFacadesOutput('backend', entries).content
+    expect(facades).toContain(`createRouteManifestShardFacades("backend", backendRouteMetadata, ["customers","sales","customers"])`)
+    expect(facades).not.toContain('import(')
+  })
+
+  it('makes every backend page route register the dynamic-prefix shard too', () => {
+    const pages = renderBackendRoutePageOutputs([
+      { path: '/backend/customers', declaration: `{} as any` },
+      { path: '/backend/[tenant]/settings', declaration: `{} as any` },
+    ])
+    expect(pages.map((page) => page.key)).toEqual(['customers'])
+    expect(pages[0].content).toContain(`registerRouteManifestShard('backend', "__dynamic", dynamicShard)`)
   })
 })

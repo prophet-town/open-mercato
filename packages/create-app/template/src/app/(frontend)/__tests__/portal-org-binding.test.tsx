@@ -30,6 +30,7 @@ jest.mock('@open-mercato/shared/modules/registry', () => ({
   })),
   getFrontendRouteManifests: jest.fn(() => []),
   registerFrontendRouteManifests: jest.fn(),
+  registerRouteManifestShard: jest.fn(),
 }))
 
 const headerStore = { get: jest.fn() }
