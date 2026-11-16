@@ -163,12 +163,14 @@ import { renderBackendRoute, resolveBackendRouteMetadata, type BackendRouteProps
 
 ${registrations.join('\n')}
 
+const prefix = [${JSON.stringify(key)}]
+
 export function generateMetadata(props: BackendRouteProps) {
-  return resolveBackendRouteMetadata(props, getBackendRouteManifests())
+  return resolveBackendRouteMetadata(props, getBackendRouteManifests(), prefix)
 }
 
 export default function BackendRouteShardPage(props: BackendRouteProps) {
-  return renderBackendRoute(props, getBackendRouteManifests())
+  return renderBackendRoute(props, getBackendRouteManifests(), prefix)
 }
 
 export const dynamic = 'force-dynamic'

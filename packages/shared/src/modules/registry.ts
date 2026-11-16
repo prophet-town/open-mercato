@@ -462,6 +462,7 @@ function routeManifestGlobals(): RouteManifestGlobalScope {
 }
 
 export function registerBackendRouteManifests(routes: BackendRouteManifestEntry[]) {
+  rememberLoadableRoutes('backend', routes)
   const pageOverrides = composePageRouteOverrides()
   const finalRoutes = Object.keys(pageOverrides).length === 0
     ? routes
@@ -474,6 +475,7 @@ export function getBackendRouteManifests(): BackendRouteManifestEntry[] {
 }
 
 export function registerFrontendRouteManifests(routes: FrontendRouteManifestEntry[]) {
+  rememberLoadableRoutes('frontend', routes)
   const pageOverrides = composePageRouteOverrides()
   const finalRoutes = Object.keys(pageOverrides).length === 0
     ? routes
@@ -492,12 +494,37 @@ type RouteManifestShard = { routes: PageRouteManifestEntry[]; routeOrders: numbe
 // bootstrap registers can load a page without statically importing every page module.
 // A static import of every loader puts every module's client components into the client
 // entry of each route that runs bootstrap.
+// A catch-all page that registers manifests with real loaders (the backend fallback
+// catch-all, the frontend catch-all, or an app still on the pre-split template) is
+// remembered per kind, and a facade whose shard is not registered loads through it.
 const ROUTE_MANIFEST_SHARDS_KEY = '__openMercatoRouteManifestShards__'
+const LOADABLE_ROUTE_MANIFESTS_KEY = '__openMercatoLoadableRouteManifests__'
+const ROUTE_SHARD_FACADE = Symbol.for('open-mercato.routeManifestShardFacade')
+
+type RouteShardGlobalScope = typeof globalThis & {
+  [ROUTE_MANIFEST_SHARDS_KEY]?: Map<string, RouteManifestShard>
+  [LOADABLE_ROUTE_MANIFESTS_KEY]?: Map<string, Map<string, PageRouteManifestEntry>>
+}
 
 function routeManifestShards(): Map<string, RouteManifestShard> {
-  const scope = globalThis as typeof globalThis & { [ROUTE_MANIFEST_SHARDS_KEY]?: Map<string, RouteManifestShard> }
+  const scope = globalThis as RouteShardGlobalScope
   scope[ROUTE_MANIFEST_SHARDS_KEY] ??= new Map()
   return scope[ROUTE_MANIFEST_SHARDS_KEY]
+}
+
+function loadableRouteManifests(): Map<string, Map<string, PageRouteManifestEntry>> {
+  const scope = globalThis as RouteShardGlobalScope
+  scope[LOADABLE_ROUTE_MANIFESTS_KEY] ??= new Map()
+  return scope[LOADABLE_ROUTE_MANIFESTS_KEY]
+}
+
+function routeManifestKey(route: { pattern?: string; path?: string }): string {
+  return route.pattern ?? route.path ?? '/'
+}
+
+function rememberLoadableRoutes(kind: 'backend' | 'frontend', routes: PageRouteManifestEntry[]) {
+  if (routes.some((route) => ROUTE_SHARD_FACADE in route)) return
+  loadableRouteManifests().set(kind, new Map(routes.map((route) => [routeManifestKey(route), route])))
 }
 
 export function registerRouteManifestShard(kind: 'backend' | 'frontend', key: string, shard: RouteManifestShard) {
@@ -511,15 +538,16 @@ export function createRouteManifestShardFacades<T extends PageRouteManifestEntry
 ): T[] {
   return metadata.map((entry, ordinal) => ({
     ...entry,
+    [ROUTE_SHARD_FACADE]: true,
     load: async () => {
       const shard = routeManifestShards().get(`${kind}:${shardKeys[ordinal]}`)
       const index = shard ? shard.routeOrders.indexOf(ordinal) : -1
-      if (!shard || index < 0) {
-        throw new Error(`[internal] Route ${entry.pattern ?? entry.path} cannot be loaded: its ${kind} route shard "${shardKeys[ordinal]}" is not registered in this process`)
-      }
-      return shard.routes[index].load()
+      if (shard && index >= 0) return shard.routes[index].load()
+      const fallback = loadableRouteManifests().get(kind)?.get(routeManifestKey(entry))
+      if (fallback) return fallback.load()
+      throw new Error(`[internal] Route ${routeManifestKey(entry)} cannot be loaded: its ${kind} route shard "${shardKeys[ordinal]}" is not registered in this process`)
     },
-  }) as T)
+  }) as unknown as T)
 }
 
 export function registerApiRouteManifests(routes: ApiRouteManifestEntry[]) {

@@ -91,5 +91,22 @@ describe('route manifest registries across duplicated module instances', () => {
     })
     await expect(facades[1].load()).resolves.toBe(Page)
   })
+
+  it('falls back to routes a catch-all registered with real loaders when no shard is registered', async () => {
+    const bootstrapCopy = loadIsolatedRegistry()
+    const legacyCatchAllCopy = loadIsolatedRegistry()
+    const Page = () => null
+    legacyCatchAllCopy.registerFrontendRouteManifests([
+      { moduleId: 'content', pattern: '/terms', load: async () => Page },
+    ])
+    const facades = bootstrapCopy.createRouteManifestShardFacades<FrontendRouteManifestEntry>(
+      'frontend',
+      [{ moduleId: 'content', pattern: '/terms' }],
+      ['__root'],
+    )
+    bootstrapCopy.registerFrontendRouteManifests(facades)
+
+    await expect(legacyCatchAllCopy.getFrontendRouteManifests()[0].load()).resolves.toBe(Page)
+  })
 })
 

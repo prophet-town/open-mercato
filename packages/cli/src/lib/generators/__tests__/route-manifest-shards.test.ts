@@ -90,6 +90,8 @@ describe('route manifest shards', () => {
     expect(customers).toContain(`registerRouteManifestShard('backend', "customers", shard)`)
     expect(customers).not.toContain('sales')
     expect(customers).toContain(`export const dynamic = 'force-dynamic'`)
+    expect(customers).toContain(`const prefix = ["customers"]`)
+    expect(customers).toContain(`renderBackendRoute(props, getBackendRouteManifests(), prefix)`)
 
     const facades = renderRouteRegistryFacadesOutput('backend', entries).content
     expect(facades).toContain(`createRouteManifestShardFacades("backend", backendRouteMetadata, ["customers","sales","customers"])`)

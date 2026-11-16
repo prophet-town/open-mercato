@@ -38,9 +38,13 @@ async function renderAccessDenied() {
   )
 }
 
-export async function resolveBackendRouteMetadata(props: BackendRouteProps, routes: BackendRouteManifestEntry[]): Promise<Metadata> {
+function backendPathname(slug: string[] | undefined, prefix: string[]) {
+  return '/backend/' + [...prefix, ...(slug ?? [])].join('/')
+}
+
+export async function resolveBackendRouteMetadata(props: BackendRouteProps, routes: BackendRouteManifestEntry[], prefix: string[] = []): Promise<Metadata> {
   const params = await props.params
-  const pathname = '/backend/' + (params.slug?.join('/') ?? '')
+  const pathname = backendPathname(params.slug, prefix)
   const match = findRouteManifestMatch(routes, pathname)
   if (!match) {
     return {}
@@ -52,9 +56,9 @@ export async function resolveBackendRouteMetadata(props: BackendRouteProps, rout
   })
 }
 
-export async function renderBackendRoute(props: BackendRouteProps, routes: BackendRouteManifestEntry[]) {
+export async function renderBackendRoute(props: BackendRouteProps, routes: BackendRouteManifestEntry[], prefix: string[] = []) {
   const params = await props.params
-  const pathname = '/backend/' + (params.slug?.join('/') ?? '')
+  const pathname = backendPathname(params.slug, prefix)
   const match = findRouteManifestMatch(routes, pathname)
   if (!match) return notFound()
   let auth: AuthContext = null
