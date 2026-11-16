@@ -123,11 +123,15 @@ describe('route manifest shards', () => {
       touch('(admin)/backend/@modal/sales/page.tsx')
       touch('(backend)/backend/(generated)/staff/[[...slug]]/page.tsx')
       touch('api/backend/catalog/route.ts')
+      touch('linked-targets/orders/page.tsx')
+      fs.symlinkSync(path.join(appRouterDir, 'linked-targets', 'orders'), path.join(appRouterDir, '(backend)', 'backend', 'orders'), 'dir')
+      fs.symlinkSync(path.join(appRouterDir, '(backend)'), path.join(appRouterDir, '(backend)', 'backend', '(loop)'), 'dir')
       const generatedDir = path.join(appRouterDir, '(backend)', 'backend', '(generated)')
 
       const owned = findAppOwnedBackendSegments(appRouterDir, generatedDir)
       expect(owned.has('customers')).toBe(true)
       expect(owned.has('sales')).toBe(true)
+      expect(owned.has('orders')).toBe(true)
       expect(owned.has('staff')).toBe(false)
       expect(owned.has('catalog')).toBe(false)
     } finally {
