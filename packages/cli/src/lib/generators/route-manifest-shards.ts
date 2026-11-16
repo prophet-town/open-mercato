@@ -221,12 +221,11 @@ export const routeManifestShardFilePattern = /^(?:api|backend)-route-shard\..+\.
 // claim the same URL, which Next rejects.
 export function findAppOwnedBackendSegments(appRouterDir: string, ignoredDir: string): Set<string> {
   const owned = new Set<string>()
-  const visited = new Set<string>()
-  const visit = (dir: string, urlSegments: string[]) => {
+  const visit = (dir: string, urlSegments: string[], ancestors: Set<string>) => {
     if (dir === ignoredDir || !fs.existsSync(dir)) return
     const realDir = fs.realpathSync(dir)
-    if (visited.has(realDir)) return
-    visited.add(realDir)
+    if (ancestors.has(realDir)) return
+    const childAncestors = new Set(ancestors).add(realDir)
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === 'node_modules') continue
       const isDirectory = entry.isDirectory() || (entry.isSymbolicLink() && fs.statSync(path.join(dir, entry.name), { throwIfNoEntry: false })?.isDirectory())
@@ -238,11 +237,11 @@ export function findAppOwnedBackendSegments(appRouterDir: string, ignoredDir: st
         continue
       }
       if (nextSegments.length < 2 && (nextSegments.length === 0 || nextSegments[0] === 'backend')) {
-        visit(path.join(dir, entry.name), nextSegments)
+        visit(path.join(dir, entry.name), nextSegments, childAncestors)
       }
     }
   }
-  visit(appRouterDir, [])
+  visit(appRouterDir, [], new Set())
   return owned
 }
 

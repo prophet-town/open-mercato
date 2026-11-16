@@ -138,5 +138,19 @@ describe('route manifest shards', () => {
       fs.rmSync(appRouterDir, { recursive: true, force: true })
     }
   })
-})
 
+  it('finds an app-owned backend segment whose directory is also reachable through a symlinked alias', () => {
+    const appRouterDir = fs.mkdtempSync(path.join(os.tmpdir(), 'om-app-router-'))
+    try {
+      const backendDir = path.join(appRouterDir, '(backend)', 'backend')
+      fs.mkdirSync(path.join(backendDir, 'customers'), { recursive: true })
+      fs.writeFileSync(path.join(backendDir, 'customers', 'page.tsx'), 'export default function Page() { return null }\n')
+      fs.symlinkSync(backendDir, path.join(appRouterDir, '(alias)'), 'dir')
+
+      const owned = findAppOwnedBackendSegments(appRouterDir, path.join(backendDir, '(generated)'))
+      expect(owned.has('customers')).toBe(true)
+    } finally {
+      fs.rmSync(appRouterDir, { recursive: true, force: true })
+    }
+  })
+})
