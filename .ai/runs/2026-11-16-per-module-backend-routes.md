@@ -2,7 +2,7 @@
 
 Branch `experiment/per-module-backend-routes`, cut from `main` at `bab96cecf`. The code is in `07e7e584e` (the change), `6430f6229` (two fixes found while measuring) and `5d5d2f5dc` (comment wording). Everything ran locally on an M-series Mac, Node 24.22.3, Next 16 with Turbopack. Commands ran in local mode: no compose `app` container was running.
 
-The measuring scripts are in `.ai/runs/route-split-tools/`. `entry.js` and `measure.mjs` are adapted from Talaria's bundle audit; `dev-measure.mjs`, `nav.mjs`, `vitals.mjs`, `server.mjs` and `lh.mjs` were written for this experiment. Raw logs and JSON results stayed on the machine that ran them.
+The measuring scripts, raw logs and JSON results are not committed. Each section below describes its method. The client-JS and page-load scripts are adapted from Talaria's bundle audit.
 
 ## Summary
 
@@ -111,7 +111,7 @@ Cold time is within noise. The warm build is 6 s slower. Output grows because Tu
 
 ### 3. Dev server
 
-Method: `yarn dev:app` on port 3000 against the ephemeral database, after `rm -rf apps/mercato/.mercato/next/dev`. The dev runtime precompiles `/login` and the login API at start. Its own login then fails (it uses the superadmin credentials from `.env`), so it skips `/backend`; this happened identically in every run. `dev-measure.mjs` then logs in as `admin@acme.com` and fetches `/backend/customers/people`, `/backend/staff/time-tracking` and `/backend/customers/people` again, with auth cookies. Compile times come from Next's trace (`compile-path`). RSS is sampled every 500 ms.
+Method: `yarn dev:app` on port 3000 against the ephemeral database, after `rm -rf apps/mercato/.mercato/next/dev`. The dev runtime precompiles `/login` and the login API at start. Its own login then fails (it uses the superadmin credentials from `.env`), so it skips `/backend`; this happened identically in every run. A script then logs in as `admin@acme.com` and fetches `/backend/customers/people`, `/backend/staff/time-tracking` and `/backend/customers/people` again, with auth cookies. Compile times come from Next's trace (`compile-path`). RSS is sampled every 500 ms.
 
 Run 2 is the cleaner protocol: a fixed 90 s wait after warmup, and RSS summed over the whole `dev-cold.sh` process tree. Run 1 sampled only the process listening on :3000; in the baseline run 1 that server had restarted after warmup, so its absolute RSS is not comparable.
 
@@ -157,7 +157,7 @@ Unit test changes:
 
 ### 5. Page speed, navigation and server cost
 
-A second pair of ephemeral environments, one per build, each measured in the same order. Scripts: `vitals.mjs`, `nav.mjs`, `server.mjs` and `lh.mjs` in `.ai/runs/route-split-tools/`.
+A second pair of ephemeral environments, one per build, each measured in the same order.
 
 **Cold page load, throttled.** Chromium with 10 Mbit/s, 40 ms round trip and 4× CPU slowdown, cache cleared, median of 3 runs. LCP is largest contentful paint. TBT is total blocking time: the sum of each long task's time over 50 ms. Script time is the browser's JavaScript execution time from CDP. "Settled" is the end of the last long task or response before 2 s with neither.
 
