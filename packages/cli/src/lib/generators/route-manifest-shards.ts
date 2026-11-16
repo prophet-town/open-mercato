@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 export type RouteManifestShardKind = 'api' | 'backend'
 export type PageRouteManifestKind = 'backend' | 'frontend'
 
@@ -212,3 +215,28 @@ export function renderRouteMetadataOutput(
 }
 
 export const routeManifestShardFilePattern = /^(?:api|backend)-route-shard\..+\.generated\.(?:ts|checksum)$/
+
+// Next ignores `(group)` and `@slot` directories in URLs, so an app page for `/backend/<key>`
+// can sit under any of them. Generating `<key>/[[...slug]]` next to it makes two routes
+// claim the same URL, which Next rejects.
+export function findAppOwnedBackendSegments(appRouterDir: string, ignoredDir: string): Set<string> {
+  const owned = new Set<string>()
+  const visit = (dir: string, urlSegments: string[]) => {
+    if (dir === ignoredDir || !fs.existsSync(dir)) return
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name === 'node_modules') continue
+      const isUrlTransparent = /^\(.*\)$/.test(entry.name) || entry.name.startsWith('@')
+      const nextSegments = isUrlTransparent ? urlSegments : [...urlSegments, entry.name]
+      if (nextSegments.length === 2 && nextSegments[0] === 'backend') {
+        owned.add(entry.name)
+        continue
+      }
+      if (nextSegments.length < 2 && (nextSegments.length === 0 || nextSegments[0] === 'backend')) {
+        visit(path.join(dir, entry.name), nextSegments)
+      }
+    }
+  }
+  visit(appRouterDir, [])
+  return owned
+}
+

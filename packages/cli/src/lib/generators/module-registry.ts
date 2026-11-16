@@ -80,6 +80,7 @@ import {
 import { loadGeneratorExtensions } from './extensions'
 import type { ModuleScanContext, StandaloneConfigOptions } from './extension'
 import {
+  findAppOwnedBackendSegments,
   renderBackendRoutePageOutputs,
   renderRouteManifestShardOutputs,
   renderRouteMetadataOutput,
@@ -3700,8 +3701,9 @@ function writeBackendRoutePages(
   const helperExists = ['.tsx', '.ts'].some((ext) => fs.existsSync(path.join(backendAppDir, BACKEND_ROUTE_PAGE_HELPER_BASENAME + ext)))
   const expected = new Map<string, string>()
   if (helperExists) {
+    const owned = findAppOwnedBackendSegments(path.join(appDir, 'src', 'app'), generatedDir)
     for (const page of pages) {
-      if (fs.existsSync(path.join(backendAppDir, page.key))) continue
+      if (owned.has(page.key)) continue
       expected.set(page.key, page.content)
     }
   }

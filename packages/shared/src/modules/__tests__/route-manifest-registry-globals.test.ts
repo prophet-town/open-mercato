@@ -108,5 +108,23 @@ describe('route manifest registries across duplicated module instances', () => {
 
     await expect(legacyCatchAllCopy.getFrontendRouteManifests()[0].load()).resolves.toBe(Page)
   })
+
+  it('falls back to the first route registered for a pattern, as matching does', async () => {
+    const registry = loadIsolatedRegistry()
+    const AppPage = () => null
+    const PackagePage = () => null
+    registry.registerBackendRouteManifests([
+      { moduleId: 'app_customers', pattern: '/backend/customers/people', load: async () => AppPage },
+      { moduleId: 'customers', pattern: '/backend/customers/people', load: async () => PackagePage },
+    ])
+    const [facade] = registry.createRouteManifestShardFacades<BackendRouteManifestEntry>(
+      'backend',
+      [{ moduleId: 'app_customers', pattern: '/backend/customers/people' }],
+      ['customers'],
+    )
+
+    expect(registry.findRouteManifestMatch(registry.getBackendRouteManifests(), '/backend/customers/people')?.route.moduleId).toBe('app_customers')
+    await expect(facade.load()).resolves.toBe(AppPage)
+  })
 })
 

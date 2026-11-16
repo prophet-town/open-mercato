@@ -522,7 +522,12 @@ function routeManifestKey(route: { pattern?: string; path?: string }): string {
 
 function rememberLoadableRoutes(kind: 'backend' | 'frontend', routes: PageRouteManifestEntry[]) {
   if (routes.some((route) => ROUTE_SHARD_FACADE in route)) return
-  loadableRouteManifests().set(kind, new Map(routes.map((route) => [routeManifestKey(route), route])))
+  const byPattern = new Map<string, PageRouteManifestEntry>()
+  for (const route of routes) {
+    const key = routeManifestKey(route)
+    if (!byPattern.has(key)) byPattern.set(key, route)
+  }
+  loadableRouteManifests().set(kind, byPattern)
 }
 
 export function registerRouteManifestShard(kind: 'backend' | 'frontend', key: string, shard: RouteManifestShard) {

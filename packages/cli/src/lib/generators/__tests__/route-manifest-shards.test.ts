@@ -1,4 +1,8 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
+  findAppOwnedBackendSegments,
   getRouteManifestShardKey,
   renderBackendRoutePageOutputs,
   renderRouteManifestShardOutputs,
@@ -106,4 +110,29 @@ describe('route manifest shards', () => {
     expect(pages.map((page) => page.key)).toEqual(['customers'])
     expect(pages[0].content).toContain(`registerRouteManifestShard('backend', "__dynamic", dynamicShard)`)
   })
+
+  it('finds app-owned backend segments through route groups and parallel-route slots', () => {
+    const appRouterDir = fs.mkdtempSync(path.join(os.tmpdir(), 'om-app-router-'))
+    const touch = (relativePath: string) => {
+      const file = path.join(appRouterDir, relativePath)
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, 'export default function Page() { return null }\n')
+    }
+    try {
+      touch('(backend)/backend/(custom)/customers/page.tsx')
+      touch('(admin)/backend/@modal/sales/page.tsx')
+      touch('(backend)/backend/(generated)/staff/[[...slug]]/page.tsx')
+      touch('api/backend/catalog/route.ts')
+      const generatedDir = path.join(appRouterDir, '(backend)', 'backend', '(generated)')
+
+      const owned = findAppOwnedBackendSegments(appRouterDir, generatedDir)
+      expect(owned.has('customers')).toBe(true)
+      expect(owned.has('sales')).toBe(true)
+      expect(owned.has('staff')).toBe(false)
+      expect(owned.has('catalog')).toBe(false)
+    } finally {
+      fs.rmSync(appRouterDir, { recursive: true, force: true })
+    }
+  })
 })
+
