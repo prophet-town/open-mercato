@@ -490,13 +490,11 @@ export function getFrontendRouteManifests(): FrontendRouteManifestEntry[] {
 type PageRouteManifestEntry = BackendRouteManifestEntry | FrontendRouteManifestEntry
 type RouteManifestShard = { routes: PageRouteManifestEntry[]; routeOrders: number[] }
 
-// Page bundles register the route shards they import here, so the route facades that
-// bootstrap registers can load a page without statically importing every page module.
-// A static import of every loader puts every module's client components into the client
-// entry of each route that runs bootstrap.
-// A catch-all page that registers manifests with real loaders (the backend fallback
-// catch-all, the frontend catch-all, or an app still on the pre-split template) is
-// remembered per kind, and a facade whose shard is not registered loads through it.
+// Route facades load pages through shards that page bundles register at runtime.
+// Bootstrap registers the facades, so it must not import page loaders itself: Next puts
+// the client components of every page a route can import into that route's client entry.
+// When a facade's shard is not registered, it loads the same route from the last
+// manifest registered with real loaders, such as a catch-all page that imports them all.
 const ROUTE_MANIFEST_SHARDS_KEY = '__openMercatoRouteManifestShards__'
 const LOADABLE_ROUTE_MANIFESTS_KEY = '__openMercatoLoadableRouteManifests__'
 const ROUTE_SHARD_FACADE = Symbol.for('open-mercato.routeManifestShardFacade')
