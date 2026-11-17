@@ -829,13 +829,13 @@ describe('generator output compatibility', () => {
 
     const content = readGenerated('bootstrap-registrations.generated.ts')
     expect(content).not.toBeNull()
-    expect(content).toContain(`import { backendRouteFacades } from "./backend-route-shards.generated"`)
-    expect(content).toContain(`import { frontendRoutes } from "./frontend-routes.generated"`)
+    expect(content).toContain(`import { backendRouteRegistryFacades } from "./backend-route-registry.generated"`)
+    expect(content).toContain(`import { frontendRouteRegistryFacades } from "./frontend-route-registry.generated"`)
     expect(content).toContain(
       `import { registerBackendRouteManifests, registerFrontendRouteManifests } from "@open-mercato/shared/modules/registry"`,
     )
-    expect(content).toMatch(/export function runBootstrapRegistrations\(\): void \{[\s\S]*registerBackendRouteManifests\(backendRouteFacades\)[\s\S]*\}/)
-    expect(content).toMatch(/export function runBootstrapRegistrations\(\): void \{[\s\S]*registerFrontendRouteManifests\(frontendRoutes\)[\s\S]*\}/)
+    expect(content).toMatch(/export function runBootstrapRegistrations\(\): void \{[\s\S]*registerBackendRouteManifests\(backendRouteRegistryFacades\)[\s\S]*\}/)
+    expect(content).toMatch(/export function runBootstrapRegistrations\(\): void \{[\s\S]*registerFrontendRouteManifests\(frontendRouteRegistryFacades\)[\s\S]*\}/)
   })
 
   it('bootstrap-registrations includes backend routes alongside plugin hooks', async () => {
@@ -846,6 +846,6 @@ describe('generator output compatibility', () => {
 
     const content = readGenerated('bootstrap-registrations.generated.ts')
     expect(content).not.toBeNull()
-    expect(content).toContain(`registerBackendRouteManifests(backendRouteFacades)`)
+    expect(content).toContain(`registerBackendRouteManifests(backendRouteRegistryFacades)`)
   })
 })

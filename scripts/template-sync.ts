@@ -556,7 +556,7 @@ function collectSourceFiles(): string[] {
       cwd: APP_SRC_ROOT,
       absolute: true,
       nodir: true,
-      ignore: ['**/node_modules/**', '**/.DS_Store'],
+      ignore: ['**/node_modules/**', '**/.DS_Store', '**/(generated)/**'],
     }),
   )
   const rootFiles = SYNC_ROOT_FILES
@@ -571,7 +571,7 @@ function collectTemplateFiles(): string[] {
       cwd: TEMPLATE_SRC_ROOT,
       absolute: true,
       nodir: true,
-      ignore: ['**/node_modules/**', '**/.DS_Store'],
+      ignore: ['**/node_modules/**', '**/.DS_Store', '**/(generated)/**'],
     }),
   )
   const rootFiles = SYNC_ROOT_FILES

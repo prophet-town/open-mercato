@@ -18,10 +18,10 @@ import { removeCleanTargets } from './lib/clean-utils.mjs'
 export function cleanGenerated(rootDir, log = console.log) {
   log('Cleaning generated files...')
   removeCleanTargets(rootDir, {
-    dirNames: ['.mercato', 'generated', '.turbo', '.next', 'dist'],
+    dirNames: ['.mercato', 'generated', '(generated)', '.turbo', '.next', 'dist'],
     skipDirNames: ['node_modules', '.git'],
   })
-  log('Done! Cleaned: .mercato, generated/, .turbo, .next, dist/')
+  log('Done! Cleaned: .mercato, generated/, (generated)/, .turbo, .next, dist/')
 }
 
 const isEntryPoint = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))

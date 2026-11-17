@@ -79,6 +79,8 @@ packages/client/src/generated/
 packages/*/dist/
 packages/**/dist/
 .mercato
+# per-shard backend page routes written by `mercato generate`
+(generated)/
 
 # runtime/event state
 .events/

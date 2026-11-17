@@ -73,4 +73,58 @@ describe('route manifest registries across duplicated module instances', () => {
     expect(reader.getBackendRouteManifests()).toEqual([])
     expect(reader.getFrontendRouteManifests()).toEqual([])
   })
+
+  it('loads facade routes through a shard registered by another bundle copy', async () => {
+    const bootstrapCopy = loadIsolatedRegistry()
+    const pageBundleCopy = loadIsolatedRegistry()
+    const Page = () => null
+    const facades = bootstrapCopy.createRouteManifestShardFacades<BackendRouteManifestEntry>(
+      'backend',
+      [{ moduleId: 'sales', pattern: '/backend/sales' }, { moduleId: 'customers', pattern: '/backend/customers' }],
+      ['sales', 'customers'],
+    )
+
+    await expect(facades[1].load()).rejects.toThrow('route shard "customers" is not registered')
+    pageBundleCopy.registerRouteManifestShard('backend', 'customers', {
+      routes: [{ moduleId: 'customers', pattern: '/backend/customers', load: async () => Page }],
+      routeOrders: [1],
+    })
+    await expect(facades[1].load()).resolves.toBe(Page)
+  })
+
+  it('falls back to routes a catch-all registered with real loaders when no shard is registered', async () => {
+    const bootstrapCopy = loadIsolatedRegistry()
+    const legacyCatchAllCopy = loadIsolatedRegistry()
+    const Page = () => null
+    legacyCatchAllCopy.registerFrontendRouteManifests([
+      { moduleId: 'content', pattern: '/terms', load: async () => Page },
+    ])
+    const facades = bootstrapCopy.createRouteManifestShardFacades<FrontendRouteManifestEntry>(
+      'frontend',
+      [{ moduleId: 'content', pattern: '/terms' }],
+      ['__root'],
+    )
+    bootstrapCopy.registerFrontendRouteManifests(facades)
+
+    await expect(legacyCatchAllCopy.getFrontendRouteManifests()[0].load()).resolves.toBe(Page)
+  })
+
+  it('falls back to the first route registered for a pattern, as matching does', async () => {
+    const registry = loadIsolatedRegistry()
+    const AppPage = () => null
+    const PackagePage = () => null
+    registry.registerBackendRouteManifests([
+      { moduleId: 'app_customers', pattern: '/backend/customers/people', load: async () => AppPage },
+      { moduleId: 'customers', pattern: '/backend/customers/people', load: async () => PackagePage },
+    ])
+    const [facade] = registry.createRouteManifestShardFacades<BackendRouteManifestEntry>(
+      'backend',
+      [{ moduleId: 'app_customers', pattern: '/backend/customers/people' }],
+      ['customers'],
+    )
+
+    expect(registry.findRouteManifestMatch(registry.getBackendRouteManifests(), '/backend/customers/people')?.route.moduleId).toBe('app_customers')
+    await expect(facade.load()).resolves.toBe(AppPage)
+  })
 })
+

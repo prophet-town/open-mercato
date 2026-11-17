@@ -80,8 +80,11 @@ import {
 import { loadGeneratorExtensions } from './extensions'
 import type { ModuleScanContext, StandaloneConfigOptions } from './extension'
 import {
+  findAppOwnedBackendSegments,
+  renderBackendRoutePageOutputs,
   renderRouteManifestShardOutputs,
   renderRouteMetadataOutput,
+  renderRouteRegistryFacadesOutput,
   routeManifestShardFilePattern,
   type RouteManifestShardEntry,
 } from './route-manifest-shards'
@@ -3685,6 +3688,46 @@ function resolveConventionFile(
   return { importName, importPath, fromApp: resolved.fromApp }
 }
 
+const BACKEND_ROUTE_PAGE_HELPER_BASENAME = 'route-page'
+const GENERATED_ROUTE_GROUP = '(generated)'
+
+function writeBackendRoutePages(
+  appDir: string,
+  pages: Array<{ key: string; content: string }>,
+  result: GeneratorResult,
+): void {
+  const backendAppDir = path.join(appDir, 'src', 'app', '(backend)', 'backend')
+  const generatedDir = path.join(backendAppDir, GENERATED_ROUTE_GROUP)
+  const helperExists = ['.tsx', '.ts'].some((ext) => fs.existsSync(path.join(backendAppDir, BACKEND_ROUTE_PAGE_HELPER_BASENAME + ext)))
+  const expected = new Map<string, string>()
+  if (helperExists) {
+    const owned = findAppOwnedBackendSegments(path.join(appDir, 'src', 'app'), generatedDir)
+    for (const page of pages) {
+      if (owned.has(page.key)) continue
+      expected.set(page.key, page.content)
+    }
+  }
+  if (fs.existsSync(generatedDir)) {
+    for (const entry of fs.readdirSync(generatedDir, { withFileTypes: true })) {
+      if (expected.has(entry.name)) continue
+      const stalePath = path.join(generatedDir, entry.name)
+      fs.rmSync(stalePath, { recursive: true, force: true })
+      result.filesWritten.push(stalePath)
+    }
+    if (expected.size === 0) fs.rmSync(generatedDir, { recursive: true, force: true })
+  }
+  for (const [key, content] of expected) {
+    const outFile = path.join(generatedDir, key, '[[...slug]]', 'page.tsx')
+    if (fs.existsSync(outFile) && fs.readFileSync(outFile, 'utf8') === content) {
+      result.filesUnchanged.push(outFile)
+      continue
+    }
+    fs.mkdirSync(path.dirname(outFile), { recursive: true })
+    fs.writeFileSync(outFile, content)
+    result.filesWritten.push(outFile)
+  }
+}
+
 type ModuleRegistryRenderOptions = ModuleRegistryOptions & {
   discovery: ModuleRegistryDiscovery
 }
@@ -3748,6 +3791,7 @@ async function generateModuleRegistryFromDiscovery(options: ModuleRegistryRender
   const apiRouteManifestDecls: WriterFunction[] = []
   const backendRouteShardEntries: RouteManifestShardEntry[] = []
   const backendRouteMetadataEntries: RouteManifestShardEntry[] = []
+  const frontendRouteMetadataEntries: RouteManifestShardEntry[] = []
   const apiRouteShardEntries: RouteManifestShardEntry[] = []
   const apiRouteMetadataEntries: RouteManifestShardEntry[] = []
   // Mutable ref so extracted helper functions can increment the shared counter
@@ -3829,6 +3873,7 @@ async function generateModuleRegistryFromDiscovery(options: ModuleRegistryRender
         frontendRoutes.push(...generatedFrontendRoutes.eagerRoutes)
         runtimeFrontendRoutes.push(...generatedFrontendRoutes.runtimeRoutes)
         frontendRouteManifestDecls.push(...generatedFrontendRoutes.manifestRoutes)
+        frontendRouteMetadataEntries.push(...generatedFrontendRoutes.metadataRoutes)
         hasRouteComponents = true
       }
     }
@@ -4317,6 +4362,9 @@ async function generateModuleRegistryFromDiscovery(options: ModuleRegistryRender
     ...renderRouteManifestShardOutputs('api', apiRouteShardEntries),
     renderRouteMetadataOutput('backend', backendRouteMetadataEntries),
     renderRouteMetadataOutput('api', apiRouteMetadataEntries),
+    renderRouteMetadataOutput('frontend', frontendRouteMetadataEntries),
+    renderRouteRegistryFacadesOutput('backend', backendRouteMetadataEntries),
+    renderRouteRegistryFacadesOutput('frontend', frontendRouteMetadataEntries),
   ]
   const legacySubscribersOutput = renderAstLegacyAliasFile({
     fileName: 'subscribers.generated.ts',
@@ -4367,6 +4415,7 @@ async function generateModuleRegistryFromDiscovery(options: ModuleRegistryRender
       quiet,
     })
   }
+  writeBackendRoutePages(resolver.getAppDir(), renderBackendRoutePageOutputs(backendRouteShardEntries), result)
   writeGeneratedFile({ outFile: legacySubscribersOutFile, checksumFile: legacySubscribersChecksumFile, content: legacySubscribersOutput, structureChecksum, result, quiet })
   const commandLoadersOutput = renderCommandLoadersFile(commandLoaderEntries)
   writeGeneratedFile({ outFile: commandLoadersOutFile, checksumFile: commandLoadersChecksumFile, content: commandLoadersOutput, structureChecksum, result, quiet })
@@ -4408,15 +4457,15 @@ async function generateModuleRegistryFromDiscovery(options: ModuleRegistryRender
   {
     const bootstrapPlugins = [...pluginRegistry.values()].filter((p) => p.bootstrapRegistration)
     const allEntryImports: string[] = [
-      buildImportStatement(`{ backendRouteFacades }`, `./backend-route-shards.generated`),
-      buildImportStatement(`{ frontendRoutes }`, `./frontend-routes.generated`),
+      buildImportStatement(`{ backendRouteRegistryFacades }`, `./backend-route-registry.generated`),
+      buildImportStatement(`{ frontendRouteRegistryFacades }`, `./frontend-route-registry.generated`),
     ]
     const allRegImports: string[] = [
       `import { registerBackendRouteManifests, registerFrontendRouteManifests } from '@open-mercato/shared/modules/registry'`,
     ]
     const allCalls: string[] = [
-      `registerBackendRouteManifests(backendRouteFacades)`,
-      `registerFrontendRouteManifests(frontendRoutes)`,
+      `registerBackendRouteManifests(backendRouteRegistryFacades)`,
+      `registerFrontendRouteManifests(frontendRouteRegistryFacades)`,
     ]
     for (const plugin of bootstrapPlugins) {
       const reg = plugin.bootstrapRegistration!

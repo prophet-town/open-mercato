@@ -462,6 +462,7 @@ function routeManifestGlobals(): RouteManifestGlobalScope {
 }
 
 export function registerBackendRouteManifests(routes: BackendRouteManifestEntry[]) {
+  rememberLoadableRoutes('backend', routes)
   const pageOverrides = composePageRouteOverrides()
   const finalRoutes = Object.keys(pageOverrides).length === 0
     ? routes
@@ -474,6 +475,7 @@ export function getBackendRouteManifests(): BackendRouteManifestEntry[] {
 }
 
 export function registerFrontendRouteManifests(routes: FrontendRouteManifestEntry[]) {
+  rememberLoadableRoutes('frontend', routes)
   const pageOverrides = composePageRouteOverrides()
   const finalRoutes = Object.keys(pageOverrides).length === 0
     ? routes
@@ -483,6 +485,72 @@ export function registerFrontendRouteManifests(routes: FrontendRouteManifestEntr
 
 export function getFrontendRouteManifests(): FrontendRouteManifestEntry[] {
   return routeManifestGlobals()[FRONTEND_ROUTE_MANIFESTS_KEY] ?? []
+}
+
+type PageRouteManifestEntry = BackendRouteManifestEntry | FrontendRouteManifestEntry
+type RouteManifestShard = { routes: PageRouteManifestEntry[]; routeOrders: number[] }
+
+// Route facades load pages through shards that page bundles register at runtime.
+// Bootstrap registers the facades, so it must not import page loaders itself: Next puts
+// the client components of every page a route can import into that route's client entry.
+// When a facade's shard is not registered, it loads the same route from the last
+// manifest registered with real loaders, such as a catch-all page that imports them all.
+const ROUTE_MANIFEST_SHARDS_KEY = '__openMercatoRouteManifestShards__'
+const LOADABLE_ROUTE_MANIFESTS_KEY = '__openMercatoLoadableRouteManifests__'
+const ROUTE_SHARD_FACADE = Symbol.for('open-mercato.routeManifestShardFacade')
+
+type RouteShardGlobalScope = typeof globalThis & {
+  [ROUTE_MANIFEST_SHARDS_KEY]?: Map<string, RouteManifestShard>
+  [LOADABLE_ROUTE_MANIFESTS_KEY]?: Map<string, Map<string, PageRouteManifestEntry>>
+}
+
+function routeManifestShards(): Map<string, RouteManifestShard> {
+  const scope = globalThis as RouteShardGlobalScope
+  scope[ROUTE_MANIFEST_SHARDS_KEY] ??= new Map()
+  return scope[ROUTE_MANIFEST_SHARDS_KEY]
+}
+
+function loadableRouteManifests(): Map<string, Map<string, PageRouteManifestEntry>> {
+  const scope = globalThis as RouteShardGlobalScope
+  scope[LOADABLE_ROUTE_MANIFESTS_KEY] ??= new Map()
+  return scope[LOADABLE_ROUTE_MANIFESTS_KEY]
+}
+
+function routeManifestKey(route: { pattern?: string; path?: string }): string {
+  return route.pattern ?? route.path ?? '/'
+}
+
+function rememberLoadableRoutes(kind: 'backend' | 'frontend', routes: PageRouteManifestEntry[]) {
+  if (routes.some((route) => ROUTE_SHARD_FACADE in route)) return
+  const byPattern = new Map<string, PageRouteManifestEntry>()
+  for (const route of routes) {
+    const key = routeManifestKey(route)
+    if (!byPattern.has(key)) byPattern.set(key, route)
+  }
+  loadableRouteManifests().set(kind, byPattern)
+}
+
+export function registerRouteManifestShard(kind: 'backend' | 'frontend', key: string, shard: RouteManifestShard) {
+  routeManifestShards().set(`${kind}:${key}`, shard)
+}
+
+export function createRouteManifestShardFacades<T extends PageRouteManifestEntry>(
+  kind: 'backend' | 'frontend',
+  metadata: Omit<T, 'load'>[],
+  shardKeys: string[],
+): T[] {
+  return metadata.map((entry, ordinal) => ({
+    ...entry,
+    [ROUTE_SHARD_FACADE]: true,
+    load: async () => {
+      const shard = routeManifestShards().get(`${kind}:${shardKeys[ordinal]}`)
+      const index = shard ? shard.routeOrders.indexOf(ordinal) : -1
+      if (shard && index >= 0) return shard.routes[index].load()
+      const fallback = loadableRouteManifests().get(kind)?.get(routeManifestKey(entry))
+      if (fallback) return fallback.load()
+      throw new Error(`[internal] Route ${routeManifestKey(entry)} cannot be loaded: its ${kind} route shard "${shardKeys[ordinal]}" is not registered in this process`)
+    },
+  }) as unknown as T)
 }
 
 export function registerApiRouteManifests(routes: ApiRouteManifestEntry[]) {

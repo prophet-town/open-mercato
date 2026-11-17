@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { findRouteManifestMatch, getFrontendRouteManifests, registerFrontendRouteManifests } from '@open-mercato/shared/modules/registry'
+import { findRouteManifestMatch, getFrontendRouteManifests, registerFrontendRouteManifests, registerRouteManifestShard } from '@open-mercato/shared/modules/registry'
 import { frontendRoutes } from '@/.mercato/generated/frontend-routes.generated'
 import { getAuthFromCookies } from '@open-mercato/shared/lib/auth/server'
 import { AccessDeniedMessage } from '@open-mercato/ui/backend/detail'
@@ -17,6 +17,7 @@ import { resolvePageMiddlewareRedirect } from '@open-mercato/shared/lib/middlewa
 import { frontendMiddlewareEntries } from '@/.mercato/generated/frontend-middleware.generated'
 
 registerFrontendRouteManifests(frontendRoutes)
+registerRouteManifestShard('frontend', '__root', { routes: frontendRoutes, routeOrders: frontendRoutes.map((_, index) => index) })
 
 type FrontendParams = { params: Promise<{ slug: string[] }> }
 
